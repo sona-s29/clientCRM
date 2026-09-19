@@ -16,7 +16,7 @@
  * it explicitly so a missing value is a visible bug, not a silent one.
  */
 import { prisma } from "@/lib/prisma";
-import type { ActivityAction } from "@prisma/client";
+import type { ActivityAction, Prisma } from "@prisma/client";
 
 interface LogActivityInput {
   userId: string;
@@ -38,7 +38,7 @@ export async function logActivity(input: LogActivityInput) {
         description: input.description,
         entityType: input.entityType,
         entityId: input.entityId,
-        metadata: input.metadata,
+        metadata: input.metadata as Prisma.InputJsonValue | undefined,
       },
     });
   } catch (err) {

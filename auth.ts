@@ -23,6 +23,7 @@
  */
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import "next-auth/jwt";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { Role, UserStatus } from "@prisma/client";
@@ -117,7 +118,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     // they persist across requests without a DB hit.
     async jwt({ token, user }) {
       if (user) {
-        const u = user as {
+        const u = user as unknown as {
           id: string;
           role: Role;
           organizationId: string | null;

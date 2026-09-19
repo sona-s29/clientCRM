@@ -2,6 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import useSWR from "swr";
 import { useState } from "react";
 import { createTaskSchema, type CreateTaskInput } from "@/lib/validations";
@@ -36,7 +37,7 @@ export function TaskForm({
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<CreateTaskInput>({
+  } = useForm<z.input<typeof createTaskSchema>, unknown, CreateTaskInput>({
     resolver: zodResolver(createTaskSchema),
     defaultValues: { status: "PENDING", priority: "MEDIUM", department: "SALES", ...defaultValues },
   });

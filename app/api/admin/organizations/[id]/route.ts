@@ -74,7 +74,7 @@ export async function PATCH(req: Request, { params }: Params) {
       action:
         data.status === "SUSPENDED"
           ? "PLATFORM_ORG_SUSPENDED"
-          : data.status && existing.status === "SUSPENDED" && data.status !== "SUSPENDED"
+          : data.status && existing.status === "SUSPENDED"
           ? "PLATFORM_ORG_REACTIVATED"
           : "ORG_UPDATED",
       description: `${data.status === "SUSPENDED" ? "Suspended" : "Updated"} organization "${updated.name}"`,

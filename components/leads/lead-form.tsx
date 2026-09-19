@@ -2,6 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import useSWR from "swr";
 import { useState } from "react";
 import { createLeadSchema, type CreateLeadInput } from "@/lib/validations";
@@ -47,7 +48,7 @@ export function LeadForm({
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<LeadFormValues>({
+  } = useForm<z.input<typeof createLeadSchema>, unknown, LeadFormValues>({
     resolver: zodResolver(createLeadSchema),
     defaultValues: {
       status: "NEW",

@@ -92,7 +92,6 @@ The seed script creates sample accounts for local development:
 
 | Account | Email | Password | Access |
 |---|---|---|---|
-| Super Admin | `superadmin@clientcrm.com` | `Super123!` | Platform console |
 | Organization Admin | `admin@northwind.clientcrm.com` | `Admin123!` | Northwind workspace |
 | Organization Admin | `admin@globex.clientcrm.com` | `Admin123!` | Globex workspace |
 

@@ -159,7 +159,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 export interface SessionUser {
   id: string;
   role: Role;
-  organizationId: string | null;
+  organizationId: string;
   isSuperAdmin: boolean;
 }
 
