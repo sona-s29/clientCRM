@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>clientCRM</title>
+  <rect width="64" height="64" rx="14" fill="#d97757"/>
+  <path d="M16 50V22l16-10 16 10v28H16Z" fill="none" stroke="#fffaf5" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M24 50V34h16v16M24 25h.01M32 25h.01M40 25h.01" fill="none" stroke="#fffaf5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
