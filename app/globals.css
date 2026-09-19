@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode (".dark" on <html>) instead of the OS-media
+   default, so the in-app theme toggle (light/dark/system via next-themes)
+   actually works. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  ------------------------------------------------------------------------
+  clientCRM design tokens — "Ink & Copper"
+  A warm-neutral, editorial-adjacent enterprise palette: a near-black "ink"
+  sidebar (constant across themes, like a brand rail) against a warm-white
+  content surface, with a copper accent reserved for primary actions and a
+  small, deliberate status/priority palette for badges. Avoids default
+  indigo-SaaS and cream/terracotta AI-generated defaults.
+  ------------------------------------------------------------------------
+*/
+:root {
+  --background: #f6f5f2;
+  --surface: #ffffff;
+  --surface-muted: #f1efe9;
+  --border: #e6e3da;
+  --border-strong: #d8d4c8;
+  --foreground: #1b1a17;
+  --foreground-muted: #6b6a63;
+  --foreground-subtle: #96948a;
+
+  --ink: #14151a;
+  --ink-foreground: #eceae3;
+  --ink-muted: #8b8d99;
+  --ink-border: #262832;
+  --ink-active: #1f212a;
+
+  --accent: #b1592f;
+  --accent-hover: #9c4b26;
+  --accent-foreground: #fff8f3;
+  --accent-soft: #fbe9de;
+
+  --success: #2f7d5c;
+  --success-soft: #e2f3ea;
+  --warning: #b07a1f;
+  --warning-soft: #faf0dc;
+  --danger: #c1442c;
+  --danger-soft: #fbe6e1;
+  --info: #2f6690;
+  --info-soft: #e3eef5;
+
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: #0c0d10;
+  --surface: #15161b;
+  --surface-muted: #1b1c22;
+  --border: #262832;
+  --border-strong: #32343f;
+  --foreground: #f1efe9;
+  --foreground-muted: #a5a49c;
+  --foreground-subtle: #71706a;
+
+  --ink: #0a0b0e;
+  --ink-foreground: #eceae3;
+  --ink-muted: #7d7f8b;
+  --ink-border: #1d1f28;
+  --ink-active: #17181f;
+
+  --accent: #d6763f;
+  --accent-hover: #e08b57;
+  --accent-foreground: #1a0d05;
+  --accent-soft: #2c1a10;
+
+  --success: #4fae82;
+  --success-soft: #123424;
+  --warning: #d8a03f;
+  --warning-soft: #382a0e;
+  --danger: #e2705a;
+  --danger-soft: #3a1712;
+  --info: #5f9dc7;
+  --info-soft: #10283a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-subtle: var(--foreground-subtle);
+
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-border: var(--ink-border);
+  --color-ink-active: var(--ink-active);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible keyboard focus everywhere — accessibility floor. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Thin, unobtrusive scrollbars used inside the sidebar and scroll panels. */
+.scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 999px; }
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }

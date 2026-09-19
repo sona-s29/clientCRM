@@ -1,0 +1,398 @@
+// clientCRM SaaS — Prisma Schema
+// This file is the single source of truth for the PostgreSQL database structure.
+// Run `npx prisma generate` after any change, then `npx prisma migrate dev --name <change>`.
+//
+// MULTI-TENANCY MODEL (see ARCHITECTURE.md and clientCRM_DATABASE_GUIDE.md for the
+// full writeup): every CRM record (User, Lead, Contact, Task, Activity) belongs to
+// exactly one Organization via a required `organizationId` foreign key, EXCEPT
+// platform Super Admins, whose User row has `organizationId = null` and
+// `isSuperAdmin = true` — they operate above the tenant boundary, not inside one.
+// No API route ever trusts an `organizationId` from the client; it is always read
+// from the authenticated session server-side. See lib/tenant.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+/// Functional/department role WITHIN an organization. Not to be confused with
+/// platform-level access — see `User.isSuperAdmin`, which is a separate concept.
+/// ADMIN here means "Organization Admin": full control of their own org only.
+enum Role {
+  ADMIN
+  IT
+  SALES
+  DIGITAL_MARKETING
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  TRIAL
+  SUSPENDED
+}
+
+enum PlanTier {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  SUSPENDED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  CONVERTED
+  LOST
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  SOCIAL_MEDIA
+  EMAIL_CAMPAIGN
+  COLD_CALL
+  EVENT
+  ADVERTISEMENT
+  OTHER
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// Activity doubles as clientCRM's audit log — see the `Activity` model comment.
+/// Values are grouped by scope: org-level CRM actions, org/user administration,
+/// and platform-level Super Admin actions (prefixed `PLATFORM_`).
+enum ActivityAction {
+  LOGIN
+  LOGOUT
+  USER_CREATED
+  USER_UPDATED
+  USER_DEACTIVATED
+  USER_INVITED
+  LEAD_CREATED
+  LEAD_UPDATED
+  LEAD_DELETED
+  LEAD_ASSIGNED
+  CONTACT_CREATED
+  CONTACT_UPDATED
+  CONTACT_DELETED
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  TASK_DELETED
+  SETTINGS_UPDATED
+  ORG_CREATED
+  ORG_UPDATED
+  SUBSCRIPTION_CHANGED
+  PLATFORM_ORG_SUSPENDED
+  PLATFORM_ORG_REACTIVATED
+  PLATFORM_PLAN_CHANGED
+  PLATFORM_LOGIN
+}
+
+// ---------------------------------------------------------------------------
+// PLATFORM MODELS (Super Admin layer)
+// ---------------------------------------------------------------------------
+
+/// One row per tenant. Every piece of CRM data hangs off this via `organizationId`.
+model Organization {
+  id        String             @id @default(cuid())
+  name      String
+  slug      String             @unique // used in onboarding URLs and support references
+  status    OrganizationStatus @default(TRIAL)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  users        User[]
+  leads        Lead[]
+  contacts     Contact[]
+  tasks        Task[]
+  activities   Activity[]
+  subscription Subscription?
+
+  @@index([status])
+}
+
+/// A pricing tier's definition. Seeded once (FREE/STARTER/PROFESSIONAL/ENTERPRISE);
+/// not created ad hoc per organization. `features` is a small JSON list of feature
+/// flags/labels used to render the pricing page and plan comparison from real data
+/// instead of hardcoded marketing copy.
+model Plan {
+  id            String   @id @default(cuid())
+  tier          PlanTier @unique
+  name          String
+  priceMonthly  Int // in whole currency units (e.g. USD); 0 for FREE
+  maxUsers      Int // seat limit; a large number (e.g. 999999) represents "unlimited"
+  maxLeads      Int // lead-record limit, same convention
+  features      Json // string[] of feature labels shown on the pricing page
+  createdAt     DateTime @default(now())
+
+  subscriptions Subscription[]
+}
+
+/// One-to-one with Organization. No real payment processor is integrated in this
+/// build — see SECURITY_GUIDE.md / ARCHITECTURE.md "Billing" section for exactly
+/// what would need to change to wire up Stripe. `status` is updated manually
+/// today (by a Super Admin, or automatically at signup as TRIAL); in a real
+/// deployment a payment webhook would drive these transitions instead.
+model Subscription {
+  id               String             @id @default(cuid())
+  organizationId   String             @unique
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planId           String
+  plan             Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status           SubscriptionStatus @default(TRIAL)
+  trialEndsAt      DateTime?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// TENANT MODELS (Organization-scoped CRM data)
+// ---------------------------------------------------------------------------
+
+model User {
+  id               String     @id @default(cuid())
+  name             String
+  email            String     @unique
+  passwordHash     String
+  role             Role       @default(SALES)
+  department       Role? // mirrors role for non-admins; org admins may or may not have one
+  status           UserStatus @default(ACTIVE)
+  avatarUrl        String?
+  jobTitle         String?
+  phone            String?
+  emailDigestOptIn Boolean    @default(true) // see README notification section
+  lastLoginAt      DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  /// Null ONLY for platform Super Admins (`isSuperAdmin = true`). Every other
+  /// user MUST belong to exactly one organization — enforced in application code
+  /// (see lib/tenant.ts), since Prisma cannot express "required unless X" at the
+  /// schema level for a nullable relation.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// Platform-level flag, entirely separate from `role`. A Super Admin manages
+  /// the SaaS platform itself (organizations, plans, subscriptions) and has no
+  /// visibility into any single organization's CRM data — see lib/permissions.ts.
+  isSuperAdmin Boolean @default(false)
+
+  // Relations — things this user owns / is assigned (all within their own org)
+  assignedLeads    Lead[]    @relation("LeadAssignee")
+  createdLeads     Lead[]    @relation("LeadCreator")
+  assignedContacts Contact[] @relation("ContactAssignee")
+  createdContacts  Contact[] @relation("ContactCreator")
+  assignedTasks    Task[]    @relation("TaskAssignee")
+  createdTasks     Task[]    @relation("TaskCreator")
+  activities       Activity[]
+  passwordResets   PasswordResetToken[]
+
+  @@index([role])
+  @@index([status])
+  @@index([organizationId])
+}
+
+model Lead {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name         String
+  email        String?
+  phone        String?
+  company      String?
+  status       LeadStatus @default(NEW)
+  priority     Priority   @default(MEDIUM)
+  source       LeadSource @default(OTHER)
+  department   Role       @default(SALES) // which team within the org owns this lead
+  notes        String?
+  followUpDate DateTime?
+  convertedAt  DateTime?
+
+  assignedToId String?
+  assignedTo   User?   @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdById String
+  createdBy   User   @relation("LeadCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  contacts Contact[]
+  tasks    Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToId])
+  @@index([department])
+  @@index([createdAt])
+}
+
+model Contact {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name    String
+  email   String?
+  phone   String?
+  company String?
+  address String?
+  notes   String?
+
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  assignedToId String?
+  assignedTo   User?   @relation("ContactAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdById String
+  createdBy   User   @relation("ContactCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([assignedToId])
+  @@index([createdAt])
+}
+
+model Task {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  status      TaskStatus @default(PENDING)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+  department  Role       @default(SALES)
+
+  assignedToId String?
+  assignedTo   User?   @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdById String
+  createdBy   User   @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToId])
+  @@index([dueDate])
+  @@index([department])
+}
+
+/// clientCRM's single audit trail, serving BOTH purposes rather than two
+/// duplicate models: org-level activity ("who did what inside this
+/// organization") for Org Admins, and platform-level audit logs ("what did a
+/// Super Admin do") for the Super Admin console. `organizationId` is null for
+/// platform-scoped actions (e.g. a Super Admin suspending an org) and set for
+/// everything that happens inside a tenant. See lib/activity.ts.
+model Activity {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  action      ActivityAction
+  entityType  String? // "lead" | "task" | "contact" | "user" | "settings" | "organization" | "subscription"
+  entityId    String?
+  description String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// PUBLIC MARKETING SITE
+// ---------------------------------------------------------------------------
+
+/// Submissions from the public /contact page. Not tied to any organization —
+/// these are prospective customers, not tenant data. No email provider is
+/// wired up (see README); submissions are simply stored for the Super Admin
+/// (or a future support inbox) to review.
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  company   String?
+  subject   String
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
